@@ -2,16 +2,17 @@ import tkinter as tk
 import random
 import pickle
 from tkinter import messagebox
+from PIL import Image, ImageTk
 
 # Define the card packs with costs and rarity distributions
 CARD_PACKS = {
-    "Bronze Pack": {"cost": 100, "rarity_distribution": {"common": 70, "uncommon": 20, "rare": 10}},
-    "Silver Pack": {"cost": 200, "rarity_distribution": {"common": 60, "uncommon": 25, "rare": 10, "super rare": 5}},
-    "Gold Pack": {"cost": 500, "rarity_distribution": {"uncommon": 20, "rare": 40, "super rare": 30, "epic": 10}},  # Reduced uncommon chance
-    "Ruby Pack": {"cost": 1000, "rarity_distribution": {"rare": 40, "super rare": 30, "epic": 20, "mythic": 10}},
-    "Emerald Pack": {"cost": 2000, "rarity_distribution": {"super rare": 40, "epic": 30, "mythic": 20, "legendary": 10}},
-    "Diamond Pack": {"cost": 3000, "rarity_distribution": {"epic": 50, "mythic": 30, "legendary": 15, "godlike": 5}},
-    "Stardust Pack": {"cost": 5000, "rarity_distribution": {"legendary": 70, "godlike": 25, "star": 5}},
+    "Bronze Pack": {"cost": 100, "rarity_distribution": {"common": 70, "uncommon": 20, "rare": 10}, "icon_path": "assets/packs/images/brown.png"},
+    "Silver Pack": {"cost": 200, "rarity_distribution": {"common": 60, "uncommon": 25, "rare": 10, "super rare": 5}, "icon_path": "assets/packs/images/silver.png"},
+    "Gold Pack": {"cost": 500, "rarity_distribution": {"uncommon": 20, "rare": 40, "super rare": 30, "epic": 10}, "icon_path": "assets/packs/images/gold.png"},
+    "Ruby Pack": {"cost": 1000, "rarity_distribution": {"rare": 40, "super rare": 30, "epic": 20, "mythic": 10}, "icon_path": "assets/packs/images/red.png"},
+    "Emerald Pack": {"cost": 2000, "rarity_distribution": {"super rare": 40, "epic": 30, "mythic": 20, "legendary": 10}, "icon_path": "assets/packs/images/green.png"},
+    "Diamond Pack": {"cost": 3000, "rarity_distribution": {"epic": 50, "mythic": 30, "legendary": 15, "godlike": 5}, "icon_path": "assets/packs/images/blue.png"},
+    "Stardust Pack": {"cost": 5000, "rarity_distribution": {"legendary": 70, "godlike": 25, "star": 5}, "icon_path": "assets/packs/images/star.png"},
 }
 
 # Chances for shiny and shadow cards
@@ -44,6 +45,11 @@ class CardGameApp:
         self.player_cards = []
         self.currency_label = None
 
+        self.icons = {}  # Dictionary to store the loaded icons
+
+        # Load icons
+        self.load_icons()
+
         # Load the game data if available
         saved_data = load_game()
         if saved_data:
@@ -53,6 +59,12 @@ class CardGameApp:
         self.start_coin_reward_system()
 
         self.main_menu()
+
+    def load_icons(self):
+        for pack_name, pack_info in CARD_PACKS.items():
+            image = Image.open(pack_info["icon_path"])
+            image = image.resize((60, 60), Image.Resampling.LANCZOS)  # Updated to use the correct attribute
+            self.icons[pack_name] = ImageTk.PhotoImage(image)
 
     def start_coin_reward_system(self):
         """Awards the player 20 coins every 2 minutes."""
@@ -95,8 +107,11 @@ class CardGameApp:
         tk.Label(self.root, text="Shop", font=("Helvetica", 18)).pack(pady=20)
 
         for pack_name, pack_info in CARD_PACKS.items():
-            tk.Button(self.root, text=f"{pack_name} - {pack_info['cost']} Coins", 
-                      command=lambda name=pack_name: self.buy_pack(name)).pack(pady=5)
+            icon = self.icons[pack_name]  # Get the icon for the pack
+            button = tk.Button(self.root, text=f"{pack_name} - {pack_info['cost']} Coins", 
+                               image=icon, compound="left",
+                               command=lambda name=pack_name: self.buy_pack(name))
+            button.pack(pady=5)
         
         tk.Button(self.root, text="Back", command=self.main_menu).pack(pady=20)
 
@@ -132,8 +147,13 @@ class CardGameApp:
 
         if self.player_inventory:
             for i, pack in enumerate(self.player_inventory):
-                tk.Button(self.root, text=f"Open {pack}", 
-                          command=lambda idx=i: self.open_pack_animation(idx)).pack(pady=5)
+                icon = self.icons.get(pack, None)  # Get the icon for the pack
+                if icon:
+                    tk.Button(self.root, text=f"Open {pack}", image=icon, compound="left",
+                            command=lambda idx=i: self.open_pack_animation(idx)).pack(pady=5)
+                else:
+                    tk.Button(self.root, text=f"Open {pack}",
+                            command=lambda idx=i: self.open_pack_animation(idx)).pack(pady=5)
         else:
             tk.Label(self.root, text="No Packs in Inventory").pack(pady=10)
 
