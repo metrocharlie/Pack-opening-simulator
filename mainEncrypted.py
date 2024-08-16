@@ -66,7 +66,7 @@ class CardGameApp:
     def load_icons(self):
         for pack_name, pack_info in CARD_PACKS.items():
             image = Image.open(pack_info["icon_path"])
-            image = image.resize((60, 60), Image.Resampling.LANCZOS)  # Updated to use the correct attribute
+            image = image.resize((50, 50), Image.Resampling.LANCZOS)  # Updated to use the correct attribute
             self.icons[pack_name] = ImageTk.PhotoImage(image)
 
     def start_coin_reward_system(self):
