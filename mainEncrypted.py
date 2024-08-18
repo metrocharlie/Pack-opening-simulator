@@ -4,24 +4,30 @@ code = base64.b64encode(b'''
 import tkinter as tk
 import random
 import pickle
-from tkinter import messagebox
+from tkinter import messagebox, Canvas, Scrollbar, Frame
 from PIL import Image, ImageTk
 
-# Define the card packs with costs and rarity distributions
+# Updated card packs with the new cold-themed packs
 CARD_PACKS = {
-    "Bronze Pack": {"cost": 100, "rarity_distribution": {"common": 70, "uncommon": 20, "rare": 10}, "icon_path": "assets/packs/images/brown.png"},
-    "Silver Pack": {"cost": 200, "rarity_distribution": {"common": 60, "uncommon": 25, "rare": 10, "super rare": 5}, "icon_path": "assets/packs/images/silver.png"},
-    "Gold Pack": {"cost": 500, "rarity_distribution": {"uncommon": 20, "rare": 40, "super rare": 30, "epic": 10}, "icon_path": "assets/packs/images/gold.png"},
-    "Ruby Pack": {"cost": 1000, "rarity_distribution": {"rare": 40, "super rare": 30, "epic": 20, "mythic": 10}, "icon_path": "assets/packs/images/red.png"},
-    "Emerald Pack": {"cost": 2000, "rarity_distribution": {"super rare": 40, "epic": 30, "mythic": 20, "legendary": 10}, "icon_path": "assets/packs/images/green.png"},
-    "Diamond Pack": {"cost": 3000, "rarity_distribution": {"epic": 50, "mythic": 30, "legendary": 15, "godlike": 5}, "icon_path": "assets/packs/images/blue.png"},
-    "Stardust Pack": {"cost": 5000, "rarity_distribution": {"legendary": 70, "godlike": 25, "star": 5}, "icon_path": "assets/packs/images/star.png"},
+    "Bronze Pack": {"cost": 100, "currency": "coins", "rarity_distribution": {"common": 70, "uncommon": 20, "rare": 10}, "icon_path": "assets/packs/images/bronze_pack_animation.png"},
+    "Silver Pack": {"cost": 200, "currency": "coins", "rarity_distribution": {"common": 40, "uncommon": 45, "rare": 10, "super rare": 5}, "icon_path": "assets/packs/images/silver_pack_animation.png"},
+    "Gold Pack": {"cost": 500, "currency": "coins", "rarity_distribution": {"uncommon": 10, "rare": 40, "super rare": 35, "epic": 15}, "icon_path": "assets/packs/images/gold_pack_animation.png"},
+    "Ruby Pack": {"cost": 1000, "currency": "coins", "rarity_distribution": {"rare": 30, "super rare": 40, "epic": 20, "mythic": 10}, "icon_path": "assets/packs/images/ruby_pack_animation.png"},
+    "Emerald Pack": {"cost": 2000, "currency": "coins", "rarity_distribution": {"super rare": 20, "epic": 40, "mythic": 30, "legendary": 10}, "icon_path": "assets/packs/images/emerald_pack_animation.png"},
+    "Diamond Pack": {"cost": 3000, "currency": "coins", "rarity_distribution": {"epic": 45, "mythic": 25, "legendary": 25, "godlike": 5}, "icon_path": "assets/packs/images/diamond_pack_animation.png"},
+    "Stardust Pack": {"cost": 5000, "currency": "coins", "rarity_distribution": {"legendary": 70, "godlike": 25, "star": 5}, "icon_path": "assets/packs/images/stardust_pack_animation.png"},
+    "Cold Pack": {"cost": 1, "currency": "snow", "rarity_distribution": {"cold common": 70, "cold uncommon": 20, "cold rare": 10}, "icon_path": "assets/packs/images/cold_pack_animation.png"},
+    "Frost Pack": {"cost": 10, "currency": "snow", "rarity_distribution": {"cold uncommon": 40, "cold rare": 40, "cold super rare": 20}, "icon_path": "assets/packs/images/frost_pack_animation.png"},
+    "Ice Pack": {"cost": 25, "currency": "snow", "rarity_distribution": {"cold rare": 30, "cold super rare": 40, "cold epic": 30}, "icon_path": "assets/packs/images/ice_pack_animation.png"},
+    "Snow Pack": {"cost": 75, "currency": "snow", "rarity_distribution": {"cold super rare": 30, "cold epic": 50, "cold mythic": 20}, "icon_path": "assets/packs/images/snow_pack_animation.png"},
+    "Blizzard Pack": {"cost": 150, "currency": "snow", "rarity_distribution": {"cold epic": 40, "cold mythic": 40, "cold legendary": 20}, "icon_path": "assets/packs/images/blizzard_pack_animation.png"},
 }
 
-# Chances for shiny and shadow cards
+# Chances for shiny, shadow, and cold cards
 SHINY_CHANCE = 0.10
 SHADOW_CHANCE = 0.01
-REFUND_CHANCE = 0.05  # 5% chance to get twice the money back
+COLD_CHANCE = 0.01  # 1% chance from normal packs
+REFUND_CHANCE = 0.05  # 5% chance to get twice the money you spent back
 
 def save_game(data, filename="savegame.pkl"):
     with open(filename, 'wb') as f:
@@ -42,52 +48,68 @@ class CardGameApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Card Pack Opening Game")
+        self.root.attributes('-fullscreen', True)
 
-        self.player_currency = 180  # Starting with 180 coins
+        self.player_currency = 180
+        self.player_snow = 0  # New Snow currency
         self.player_inventory = []
         self.player_cards = []
         self.currency_label = None
+        self.snow_label = None  # Label for Snow currency
 
-        self.icons = {}  # Dictionary to store the loaded icons
-
-        # Load icons
+        self.icons = {}
         self.load_icons()
 
-        # Load the game data if available
         saved_data = load_game()
         if saved_data:
-            self.player_currency, self.player_inventory, self.player_cards = saved_data
+            self.player_currency, self.player_snow, self.player_inventory, self.player_cards = saved_data
 
-        # Initialize the coin reward system
         self.start_coin_reward_system()
-
         self.main_menu()
 
     def load_icons(self):
+        """Load all the icons required for the game."""
         for pack_name, pack_info in CARD_PACKS.items():
-            image = Image.open(pack_info["icon_path"])
-            image = image.resize((50, 50), Image.Resampling.LANCZOS)  # Updated to use the correct attribute
-            self.icons[pack_name] = ImageTk.PhotoImage(image)
+            try:
+                image = Image.open(pack_info["icon_path"])
+                image = image.resize((50, 50), Image.LANCZOS)
+                self.icons[pack_name] = ImageTk.PhotoImage(image)
+            except FileNotFoundError:
+                messagebox.showerror("Error", f"Image for {pack_name} not found at {pack_info['icon_path']}")
+
+        # Load animation images for each pack type
+        self.pack_animation_images = {}
+        for pack_name in CARD_PACKS.keys():
+            try:
+                animation_image = Image.open(f"assets/packs/images/{pack_name.lower().replace(' ', '_')}_animation.png")
+                animation_image = animation_image.resize((200, 200), Image.LANCZOS)
+                self.pack_animation_images[pack_name] = ImageTk.PhotoImage(animation_image)
+            except FileNotFoundError:
+                messagebox.showerror("Error", f"Animation image for {pack_name} not found.")
 
     def start_coin_reward_system(self):
         """Awards the player 20 coins every 2 minutes."""
         self.player_currency += 20
         self.update_currency_display()
-        self.root.after(2 * 60 * 1000, self.start_coin_reward_system)  # Repeat every 2 minutes
+        self.root.after(2 * 60 * 1000, self.start_coin_reward_system)
 
     def update_currency_display(self):
-        """ Updates the currency display in the top right corner of the window. """
+        """Updates the currency display in the top right corner of the window."""
+        # Remove the old labels if they exist
         if self.currency_label:
             self.currency_label.destroy()
+        if self.snow_label:
+            self.snow_label.destroy()
 
+        # Create new labels to display the current currency
         self.currency_label = tk.Label(self.root, text=f"Coins: {self.player_currency}", font=("Helvetica", 14))
-        self.currency_label.place(relx=1.0, rely=0.0, anchor='ne')
+        self.currency_label.place(relx=0.98, rely=0.02, anchor='ne')
 
-    def save_progress(self):
-        data = (self.player_currency, self.player_inventory, self.player_cards)
-        save_game(data)
+        self.snow_label = tk.Label(self.root, text=f"Snow: {self.player_snow}", font=("Helvetica", 14))
+        self.snow_label.place(relx=0.98, rely=0.07, anchor='ne')
 
     def main_menu(self):
+        """Main menu setup."""
         for widget in self.root.winfo_children():
             widget.destroy()
 
@@ -95,40 +117,164 @@ class CardGameApp:
 
         tk.Label(self.root, text="Card Pack Opening Game", font=("Helvetica", 24)).pack(pady=20)
 
-        tk.Button(self.root, text="Shop", command=self.shop_menu).pack(pady=10)
-        tk.Button(self.root, text="Inventory", command=self.inventory_menu).pack(pady=10)
-        tk.Button(self.root, text="Market", command=self.market_menu).pack(pady=10)  # Market button moved to main menu
-        tk.Button(self.root, text="Save Progress", command=self.save_progress).pack(pady=10)
-        tk.Button(self.root, text="Exit", command=self.root.quit).pack(pady=10)
+        tk.Button(self.root, text="Shop", width=20, command=self.shop_menu).pack(pady=10)
+        tk.Button(self.root, text="Inventory", width=20, command=self.inventory_menu).pack(pady=10)
+        tk.Button(self.root, text="Market", width=20, command=self.market_menu).pack(pady=10)
+        tk.Button(self.root, text="Convert Currency", width=20, command=self.convert_currency_menu).pack(pady=10)
+        tk.Button(self.root, text="Save Progress", width=20, command=self.save_progress).pack(pady=10)
+        tk.Button(self.root, text="Exit", width=20, command=self.root.quit).pack(pady=10)
 
-    def shop_menu(self):
+    def convert_currency_menu(self):
+        """Menu to convert between Coins and Snow."""
         for widget in self.root.winfo_children():
             widget.destroy()
 
         self.update_currency_display()
 
-        tk.Label(self.root, text="Shop", font=("Helvetica", 18)).pack(pady=20)
+        tk.Label(self.root, text="Convert Currency", font=("Helvetica", 18)).pack(pady=20)
 
-        for pack_name, pack_info in CARD_PACKS.items():
-            icon = self.icons[pack_name]  # Get the icon for the pack
-            button = tk.Button(self.root, text=f"{pack_name} - {pack_info['cost']} Coins", 
-                               image=icon, compound="left",
-                               command=lambda name=pack_name: self.buy_pack(name))
-            button.pack(pady=5)
-        
-        tk.Button(self.root, text="Back", command=self.main_menu).pack(pady=20)
+        # Conversion from Coins to Snow
+        tk.Button(self.root, text="Convert 250 Coins to 1 Snow",
+                  width=30, command=self.convert_coins_to_snow).pack(pady=5)
 
-    def buy_pack(self, pack_name):
-        if self.player_currency >= CARD_PACKS[pack_name]["cost"]:
-            self.player_currency -= CARD_PACKS[pack_name]["cost"]
-            self.player_inventory.append(pack_name)
-            messagebox.showinfo("Pack Purchased", f"You bought a {pack_name}!")
-            self.inventory_menu()  # Go back to inventory to reflect the purchase
+        # Conversion from Snow to Coins
+        tk.Button(self.root, text="Convert 1 Snow to 250 Coins",
+                  width=30, command=self.convert_snow_to_coins).pack(pady=5)
+
+        tk.Button(self.root, text="Back", width=20, command=self.main_menu).pack(pady=20)
+
+    def convert_coins_to_snow(self):
+        """Converts 250 Coins to 1 Snow."""
+        if self.player_currency >= 250:
+            self.player_currency -= 250
+            self.player_snow += 1
+            self.update_currency_display()
+            messagebox.showinfo("Conversion Successful", "Converted 250 Coins to 1 Snow!")
         else:
-            messagebox.showerror("Error", "Not enough currency!")
-        self.shop_menu()
+            messagebox.showerror("Error", "Not enough coins to convert!")
+        self.convert_currency_menu()
+
+    def convert_snow_to_coins(self):
+        """Converts 1 Snow to 250 Coins."""
+        if self.player_snow >= 1:
+            self.player_snow -= 1
+            self.player_currency += 250
+            self.update_currency_display()
+            messagebox.showinfo("Conversion Successful", "Converted 1 Snow to 250 Coins!")
+        else:
+            messagebox.showerror("Error", "Not enough Snow to convert!")
+        self.convert_currency_menu()
+
+    def shop_menu(self):
+        """Display the shop menu where players can buy packs."""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        self.update_currency_display()
+
+        # Create a canvas and a frame that will hold all the pack buttons
+        canvas = tk.Canvas(self.root)
+        scroll_y = tk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
+        scroll_y.pack(anchor="center")
+
+        # This frame will be where the actual widgets (buttons, labels) are placed
+        scrollable_frame = tk.Frame(canvas)
+
+        # Function to configure scroll region
+        def on_frame_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        # Add a binding to the mouse scroll wheel
+        def _on_mouse_wheel(event):
+            canvas.yview_scroll(-1 * int((event.delta / 120)), "units")
+
+        scrollable_frame.bind("<Configure>", on_frame_configure)
+        canvas.bind_all("<MouseWheel>", _on_mouse_wheel)
+
+        # Create a window inside the canvas to hold the scrollable frame
+        new_window_with = 800
+        window_width = root.winfo_width()
+        canvas.create_window(((window_width-new_window_with)//2, 0), window=scrollable_frame, anchor="nw", width=new_window_with)
+        canvas.configure(yscrollcommand=scroll_y.set)
+
+        # Title
+        tk.Label(scrollable_frame, text="Shop", font=("Helvetica", 18)).pack(pady=20)
+
+        # Outer frame to help with centering
+        outer_frame = tk.Frame(scrollable_frame)
+        outer_frame.pack(anchor="center")
+
+        # Pack frame that will hold the pack options
+        pack_frame = tk.Frame(outer_frame)
+        pack_frame.pack(anchor="center", pady=20)
+
+        # Add pack options inside pack_frame
+        for pack_name, pack_info in CARD_PACKS.items():
+            icon = self.icons.get(pack_name)
+
+            frame = tk.Frame(pack_frame)
+            frame.pack(pady=5)
+
+            # Determine the currency to display
+            currency_type = "Coins" if pack_info["currency"] == "coins" else "Snow"
+            cost_text = f"{pack_info['cost']} {currency_type}"
+
+            tk.Label(frame, image=icon).pack(side='left', padx=10)
+            tk.Button(frame, text=f"{pack_name} - {cost_text}",
+                    width=30,
+                    command=lambda name=pack_name: self.select_pack_quantity(name)).pack(side='left')
+
+        # Position the back button at the bottom of the scrollable_frame, centered
+        tk.Button(scrollable_frame, text="Back", width=20, command=self.main_menu).pack(pady=20)
+
+        # Pack everything in the main root window
+        canvas.pack(side="left", fill="both", expand=True)
+        scroll_y.pack(side="right", fill="y")
+
+    def select_pack_quantity(self, pack_name):
+        """Display a menu to select the quantity of packs to buy."""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        self.update_currency_display()
+
+        tk.Label(self.root, text=f"Buy {pack_name}", font=("Helvetica", 18)).pack(pady=20)
+
+        def purchase(quantity):
+            self.buy_pack(pack_name, quantity)
+
+        for i in range(1, 6):  # Allows selection of 1 to 5 packs
+            tk.Button(self.root, text=f"Buy {i} {pack_name}(s)",
+                      width=30,
+                      command=lambda quantity=i: purchase(quantity)).pack(pady=5)
+
+        tk.Button(self.root, text="Back", width=20, command=self.shop_menu).pack(pady=20)
+
+    def buy_pack(self, pack_name, quantity=1):
+        pack_info = CARD_PACKS[pack_name]
+        total_cost = pack_info["cost"] * quantity
+
+        if pack_info["currency"] == "coins":
+            if self.player_currency >= total_cost:
+                self.player_currency -= total_cost
+                self.player_inventory.extend([pack_name] * quantity)
+                messagebox.showinfo("Pack Purchased", f"You bought {quantity} {pack_name}(s)!")
+                self.inventory_menu()  # Go to inventory to reflect the purchase
+            else:
+                messagebox.showerror("Error", "Not enough currency!")
+                self.shop_menu()
+        elif pack_info["currency"] == "snow":
+            if self.player_snow >= total_cost:
+                self.player_snow -= total_cost
+                self.player_inventory.extend([pack_name] * quantity)
+                messagebox.showinfo("Pack Purchased", f"You bought {quantity} {pack_name}(s)!")
+                self.inventory_menu()  # Go to inventory to reflect the purchase
+            else:
+                messagebox.showerror("Error", "Not enough Snow!")
+                self.shop_menu()
 
     def inventory_menu(self):
+        """Displays the inventory menu."""
         for widget in self.root.winfo_children():
             widget.destroy()
 
@@ -136,49 +282,53 @@ class CardGameApp:
 
         tk.Label(self.root, text="Inventory", font=("Helvetica", 18)).pack(pady=20)
 
-        tk.Button(self.root, text="Card Packs", command=self.open_pack_inventory).pack(pady=10)
-        tk.Button(self.root, text="View Cards", command=self.card_inventory_menu).pack(pady=10)
-        tk.Button(self.root, text="Back", command=self.main_menu).pack(pady=20)
+        tk.Button(self.root, text="Open Packs", width=20, command=self.open_pack_inventory).pack(pady=10)
+        tk.Button(self.root, text="View Cards", width=20, command=self.card_inventory_menu).pack(pady=10)
+        tk.Button(self.root, text="Back", width=20, command=self.main_menu).pack(pady=20)
 
     def open_pack_inventory(self):
+        """Displays the list of packs available to open."""
         for widget in self.root.winfo_children():
             widget.destroy()
 
         self.update_currency_display()
 
-        tk.Label(self.root, text="Card Packs", font=("Helvetica", 18)).pack(pady=20)
+        tk.Label(self.root, text="Your Packs", font=("Helvetica", 18)).pack(pady=20)
 
         if self.player_inventory:
             for i, pack in enumerate(self.player_inventory):
-                icon = self.icons.get(pack, None)  # Get the icon for the pack
-                if icon:
-                    tk.Button(self.root, text=f"Open {pack}", image=icon, compound="left",
-                            command=lambda idx=i: self.open_pack_animation(idx)).pack(pady=5)
-                else:
-                    tk.Button(self.root, text=f"Open {pack}",
-                            command=lambda idx=i: self.open_pack_animation(idx)).pack(pady=5)
+                icon = self.icons.get(pack)
+                frame = tk.Frame(self.root)
+                frame.pack(pady=5)
+
+                tk.Label(frame, image=icon).pack(side='left', padx=10)
+                tk.Button(frame, text=f"Open {pack}",
+                          width=30,
+                          command=lambda idx=i: self.open_pack_animation(idx)).pack(side='left')
         else:
             tk.Label(self.root, text="No Packs in Inventory").pack(pady=10)
 
-        tk.Button(self.root, text="Back", command=self.inventory_menu).pack(pady=20)
+        tk.Button(self.root, text="Back", width=20, command=self.inventory_menu).pack(pady=20)
 
     def card_inventory_menu(self):
+        """Displays the player's card collection."""
         for widget in self.root.winfo_children():
             widget.destroy()
 
         self.update_currency_display()
 
-        tk.Label(self.root, text="Card Inventory", font=("Helvetica", 18)).pack(pady=20)
+        tk.Label(self.root, text="Your Cards", font=("Helvetica", 18)).pack(pady=20)
 
         if self.player_cards:
             for card in self.player_cards:
-                tk.Label(self.root, text=card, font=("Helvetica", 14)).pack(pady=5)
+                tk.Label(self.root, text=card, font=("Helvetica", 14)).pack(pady=2)
         else:
             tk.Label(self.root, text="No Cards in Inventory").pack(pady=10)
 
-        tk.Button(self.root, text="Back", command=self.inventory_menu).pack(pady=20)
+        tk.Button(self.root, text="Back", width=20, command=self.inventory_menu).pack(pady=20)
 
     def market_menu(self):
+        """Displays the market where players can sell their cards."""
         for widget in self.root.winfo_children():
             widget.destroy()
 
@@ -190,11 +340,12 @@ class CardGameApp:
             for i, card in enumerate(self.player_cards):
                 price = self.get_card_price(card)
                 tk.Button(self.root, text=f"Sell {card} for {price} Coins",
+                          width=40,
                           command=lambda idx=i, price=price: self.sell_card(idx, price)).pack(pady=5)
         else:
             tk.Label(self.root, text="No Cards to Sell").pack(pady=10)
 
-        tk.Button(self.root, text="Back", command=self.main_menu).pack(pady=20)
+        tk.Button(self.root, text="Back", width=20, command=self.main_menu).pack(pady=20)
 
     def sell_card(self, index, price):
         card = self.player_cards.pop(index)
@@ -203,131 +354,118 @@ class CardGameApp:
         self.market_menu()
 
     def get_card_price(self, card):
-        """ Determines the selling price of a card based on its rarity and variant. """
+        """Determines the selling price of a card based on its rarity and variant."""
         base_prices = {
-            "common": 120,         # 4x boost for common cards
-            "uncommon": 300,       # 5x boost for uncommon cards
-            "rare": 300,           # 2x boost for rare cards
-            "super rare": 450,     # 1.5x boost for super rare cards
-            "epic": 600,
-            "mythic": 1500,
-            "mythic": 1500,
-            "legendary": 3000,
-            "godlike": 6000,
-            "star": 15000
+            "common": 110,
+            "uncommon": 175,
+            "rare": 250,
+            "super rare": 400,
+            "epic": 800,
+            "mythic": 1600,
+            "legendary": 3200,
+            "godlike": 6400,
+            "star": 30000,
+            "cold common": 220,
+            "cold uncommon": 350,
+            "cold rare": 500,
+            "cold super rare": 800,
+            "cold epic": 1600,
+            "cold mythic": 3200,
+            "cold legendary": 6400,
         }
-        
+
+        price = 0
         for rarity in base_prices:
             if rarity in card.lower():
                 price = base_prices[rarity]
                 break
-        else:
-            price = 0
 
-        # Adjust price for shiny or shadow variants
+        # Adjust price for shiny, shadow, or cold variants
         if "shiny" in card.lower():
-            price *= 1.5
+            price *= 2
         elif "shadow" in card.lower():
-            price *= 2.5
-
-        # Random fluctuation in price
-        price = int(price * (random.uniform(0.9, 1.1)))
+            price *= 3
+        elif "cold" in card.lower() and "cold" not in rarity:
+            price *= 2
 
         return price
 
     def open_pack_animation(self, index):
-        """Animates the card pack sliding upwards into the middle and fading out to reveal the card."""
-        pack_name = self.player_inventory.pop(index)
-        result = self.generate_cards(pack_name)
-
-        if isinstance(result, list):  # If a card was generated
-            self.player_cards.extend(result)
-            card_obtained = result[0]
-        else:  # If a refund was given
-            card_obtained = result
+        """Animates the card pack opening with the correct animation based on the pack."""
+        pack_name = self.player_inventory.pop(index)  # Remove the pack from inventory
+        result = self.generate_card(pack_name)        # Generate the card based on the pack
 
         for widget in self.root.winfo_children():
             widget.destroy()
 
         self.update_currency_display()
 
-        # Create the "Back to Inventory" button first
-        back_button = tk.Button(self.root, text="Back to Inventory", command=self.inventory_menu)
-        back_button.pack(pady=20)
-
-        # Pack image placeholder, centered under the back button
-        pack_img = tk.Label(self.root, text="[Pack Image]", font=("Helvetica", 18), bg="brown", fg="white")
-        pack_img.place(relx=0.5, rely=0.5, anchor='center')
-
-        # Start the animation of the pack sliding upwards
-        self.slide_pack_up(pack_img, card_obtained)
-
-    def slide_pack_up(self, pack_img, card_obtained):
-        """Animate the card pack sliding upwards into the middle of the screen."""
-        def animate_slide(step=10):
-            # Move the pack up by `step` pixels
-            x, y = pack_img.winfo_x(), pack_img.winfo_y()
-            if y > 200:  # Slide to a position under the "Back to Inventory" button
-                pack_img.place(x=x, y=y-step)
-                self.root.after(50, animate_slide)
-            else:
-                # Once the pack is in place, start fading it out
-                self.fade_pack(pack_img, card_obtained)
-
-        animate_slide()
-
-    def fade_pack(self, pack_img, card_obtained):
-        """Fades out the card pack image and reveals the card or refund."""
-        def animate_fade(alpha=1.0, step=0.1):
-            # Reduce the transparency by step
-            if alpha > 0:
-                pack_img.config(fg=f'#{int(alpha*255):02x}0000')  # Fade out effect
-                self.root.after(50, animate_fade, alpha-step)
-            else:
-                # Pack has faded out, reveal the card or refund
-                pack_img.destroy()
-                self.reveal_card(card_obtained)
-
-        animate_fade()
+        # Get the correct animation image for the pack
+        pack_animation_image = self.pack_animation_images.get(pack_name, None)
+        
+        if pack_animation_image:
+            pack_img = tk.Label(self.root, image=pack_animation_image)
+            pack_img.pack(pady=20)
+            self.root.after(2000, lambda: self.reveal_card(result))
+        else:
+            self.reveal_card(result)
 
     def reveal_card(self, card_obtained):
-        """Reveal the card or refund after the pack has faded away."""
-        if isinstance(card_obtained, str) and card_obtained.startswith("Refund"):
-            card_label = tk.Label(self.root, text=card_obtained, font=("Helvetica", 18), bg="green", fg="white")
-        else:
-            card_label = tk.Label(self.root, text=card_obtained, font=("Helvetica", 18), bg="gold", fg="black")
-        
-        card_label.place(relx=0.5, rely=0.5, anchor='center')  # Centered under the "Back to Inventory" button
+        """Displays the obtained card after opening a pack."""
+        for widget in self.root.winfo_children():
+            widget.destroy()
 
-    def generate_cards(self, pack_name):
-        """Generates cards from a given pack based on its rarity distribution or refunds twice the pack cost."""
+        self.update_currency_display()
+
+        tk.Label(self.root, text="You obtained:", font=("Helvetica", 18)).pack(pady=20)
+        tk.Label(self.root, text=card_obtained, font=("Helvetica", 16)).pack(pady=10)
+
+        tk.Button(self.root, text="Back to Inventory", width=20, command=self.inventory_menu).pack(pady=20)
+
+    def generate_card(self, pack_name):
+        """Generates a card from a given pack based on its rarity distribution or provides a refund."""
         if random.random() <= REFUND_CHANCE:
             refund_amount = CARD_PACKS[pack_name]["cost"] * 2
             self.player_currency += refund_amount
-            return f"Refund! You got {refund_amount} Coins"
+            return f"Refund! You received {refund_amount} Coins."
 
         pack_info = CARD_PACKS[pack_name]
         rarity_distribution = pack_info["rarity_distribution"]
 
-        # Select the card rarity based on the distribution probabilities
         rarities = list(rarity_distribution.keys())
         probabilities = list(rarity_distribution.values())
 
         selected_rarity = random.choices(rarities, probabilities, k=1)[0]
-        
-        # Determine if the card is shiny or shadow variant
+
+        # Determine if the card is shiny, shadow, or cold variant
         card_variant = ""
-        if random.random() <= SHINY_CHANCE:
-            card_variant = "Shiny "
-        elif random.random() <= SHADOW_CHANCE:
-            card_variant = "Shadow "
+        variant_roll = random.random()
+
+        if "cold" not in selected_rarity.lower():  # Cold cards from normal packs
+            if variant_roll <= SHADOW_CHANCE:
+                card_variant = "Shadow "
+            elif variant_roll <= SHINY_CHANCE + SHADOW_CHANCE:
+                card_variant = "Shiny "
+            elif variant_roll <= COLD_CHANCE + SHINY_CHANCE + SHADOW_CHANCE:
+                card_variant = "Cold "
+
+        # Cold packs always give a cold variant
+        if "cold" in selected_rarity.lower():
+            card_variant = ""  # Avoid adding "Cold" again
 
         card_name = f"{card_variant}{selected_rarity.capitalize()} Card"
 
-        return [card_name]
+        self.player_cards.append(card_name)
+        return card_name
+
+    def save_progress(self):
+        """Saves the current game progress."""
+        data = (self.player_currency, self.player_snow, self.player_inventory, self.player_cards)
+        save_game(data)
 
 if __name__ == "__main__":
     root = tk.Tk()
+    root.geometry("600x600")  # Set the window size
     app = CardGameApp(root)
     root.mainloop()
 ''')
