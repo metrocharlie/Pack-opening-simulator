@@ -3,11 +3,12 @@ import random
 import pickle
 from tkinter import messagebox, Canvas, Scrollbar, Frame
 from PIL import Image, ImageTk
+import re
 
-# Updated card packs with the new cold-themed packs
+# Updated card packs including Easter Egg packs
 CARD_PACKS = {
     "Bronze Pack": {"cost": 100, "currency": "coins", "rarity_distribution": {"common": 70, "uncommon": 20, "rare": 10}, "icon_path": "assets/packs/images/bronze_pack_animation.png"},
-    "Silver Pack": {"cost": 200, "currency": "coins", "rarity_distribution": {"common": 40, "uncommon": 45, "rare": 10, "super rare": 5}, "icon_path": "assets/packs/images/silver_pack_animation.png"},
+    "Silver Pack": {"cost": 200, "currency": "coins", "rarity_distribution": {"common": 10, "uncommon": 30, "rare": 35, "super rare": 25}, "icon_path": "assets/packs/images/silver_pack_animation.png"},
     "Gold Pack": {"cost": 500, "currency": "coins", "rarity_distribution": {"uncommon": 10, "rare": 40, "super rare": 35, "epic": 15}, "icon_path": "assets/packs/images/gold_pack_animation.png"},
     "Ruby Pack": {"cost": 1000, "currency": "coins", "rarity_distribution": {"rare": 30, "super rare": 40, "epic": 20, "mythic": 10}, "icon_path": "assets/packs/images/ruby_pack_animation.png"},
     "Emerald Pack": {"cost": 2000, "currency": "coins", "rarity_distribution": {"super rare": 20, "epic": 40, "mythic": 30, "legendary": 10}, "icon_path": "assets/packs/images/emerald_pack_animation.png"},
@@ -18,6 +19,11 @@ CARD_PACKS = {
     "Ice Pack": {"cost": 25, "currency": "snow", "rarity_distribution": {"cold rare": 30, "cold super rare": 40, "cold epic": 30}, "icon_path": "assets/packs/images/ice_pack_animation.png"},
     "Snow Pack": {"cost": 75, "currency": "snow", "rarity_distribution": {"cold super rare": 30, "cold epic": 50, "cold mythic": 20}, "icon_path": "assets/packs/images/snow_pack_animation.png"},
     "Blizzard Pack": {"cost": 150, "currency": "snow", "rarity_distribution": {"cold epic": 40, "cold mythic": 40, "cold legendary": 20}, "icon_path": "assets/packs/images/blizzard_pack_animation.png"},
+    
+    # Easter Egg Packs (hidden packs)
+    "Ollie Pack": {"cost": 0, "currency": "special", "rarity_distribution": {"ollie rare": 50, "ollie epic": 30, "ollie legendary": 20}, "icon_path": "assets/packs/images/ollie_pack_animation.png", "purchasable": False},
+    "Plasma Pack": {"cost": 0, "currency": "special", "rarity_distribution": {"plasma common": 40, "plasma rare": 40, "plasma epic": 20}, "icon_path": "assets/packs/images/plasma_pack_animation.png", "purchasable": False},
+    "Hacker Pack": {"cost": 0, "currency": "special", "rarity_distribution": {"hacker uncommon": 40, "hacker rare": 30, "hacker epic": 20, "hacker mythic": 10}, "icon_path": "assets/packs/images/hacker_pack_animation.png", "purchasable": False},
 }
 
 # Chances for shiny, shadow, and cold cards
@@ -25,6 +31,15 @@ SHINY_CHANCE = 0.10
 SHADOW_CHANCE = 0.01
 COLD_CHANCE = 0.01  # 1% chance from normal packs
 REFUND_CHANCE = 0.05  # 5% chance to get twice the money you spent back
+
+# Easter Egg Chance
+EASTER_EGG_CHANCE = 0.005  # 0.5% chance
+EASTER_EGG_OPTIONS = {
+    "Ollie Pack": 33,
+    "Plasma Pack": 33,
+    "Hacker Pack": 33,
+    "Million Coins": 1,
+}
 
 def save_game(data, filename="savegame.pkl"):
     with open(filename, 'wb') as f:
@@ -167,8 +182,6 @@ class CardGameApp:
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        self.update_currency_display()
-
         # Create a canvas and a frame that will hold all the pack buttons
         canvas = tk.Canvas(self.root)
         scroll_y = tk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
@@ -190,8 +203,8 @@ class CardGameApp:
 
         # Create a window inside the canvas to hold the scrollable frame
         new_window_with = 800
-        window_width = root.winfo_width()
-        canvas.create_window(((window_width-new_window_with)//2, 0), window=scrollable_frame, anchor="nw", width=new_window_with)
+        window_width = self.root.winfo_width()
+        canvas.create_window(((window_width - new_window_with) // 2, 0), window=scrollable_frame, anchor="nw", width=new_window_with)
         canvas.configure(yscrollcommand=scroll_y.set)
 
         # Title
@@ -207,6 +220,9 @@ class CardGameApp:
 
         # Add pack options inside pack_frame
         for pack_name, pack_info in CARD_PACKS.items():
+            if not pack_info.get("purchasable", True):
+                continue  # Skip Easter Egg packs (not purchasable)
+
             icon = self.icons.get(pack_name)
 
             frame = tk.Frame(pack_frame)
@@ -227,6 +243,9 @@ class CardGameApp:
         # Pack everything in the main root window
         canvas.pack(side="left", fill="both", expand=True)
         scroll_y.pack(side="right", fill="y")
+
+        # Ensure currency display is updated after everything is set up
+        self.update_currency_display()
 
     def select_pack_quantity(self, pack_name):
         """Display a menu to select the quantity of packs to buy."""
@@ -335,16 +354,23 @@ class CardGameApp:
 
         if self.player_cards:
             for i, card in enumerate(self.player_cards):
-                price = self.get_card_price(card)
-                tk.Button(self.root, text=f"Sell {card} for {price} Coins",
-                          width=40,
-                          command=lambda idx=i, price=price: self.sell_card(idx, price)).pack(pady=5)
+                try:
+                    price = self.get_card_price(card)
+                    tk.Button(self.root, text=f"Sell {card} for {price} Coins",
+                            width=40,
+                            command=lambda idx=i, price=price: self.sell_card(idx, price)).pack(pady=5)
+                except Exception as e:
+                    # Print the exception in the console for debugging
+                    print(f"Error displaying card {card}: {e}")
+                    # Show an error messagebox for feedback
+                    messagebox.showerror("Error", f"Could not display card: {card}")
         else:
-            tk.Label(self.root, text="No Cards to Sell").pack(pady=10)
+            tk.Label(self.root, text="No Cards to Sell", font=("Helvetica", 14)).pack(pady=10)
 
         tk.Button(self.root, text="Back", width=20, command=self.main_menu).pack(pady=20)
 
     def sell_card(self, index, price):
+        """Handles selling a card from the inventory."""
         card = self.player_cards.pop(index)
         self.player_currency += price
         messagebox.showinfo("Card Sold", f"You sold {card} for {price} coins!")
@@ -356,8 +382,8 @@ class CardGameApp:
             "common": 110,
             "uncommon": 175,
             "rare": 250,
-            "super rare": 400,
-            "epic": 800,
+            "super rare": 500,  # Make sure this is correctly identified
+            "epic": 1000,
             "mythic": 1600,
             "legendary": 3200,
             "godlike": 6400,
@@ -371,20 +397,49 @@ class CardGameApp:
             "cold legendary": 6400,
         }
 
+        # Debugging output to see the exact card name
+        print(f"Processing card: {card}")
+
+        card_lower = card.lower().strip()
         price = 0
-        for rarity in base_prices:
-            if rarity in card.lower():
-                price = base_prices[rarity]
+
+        # Match rarity, handling potential errors or unusual formats
+        matched = False
+
+        # Check for more specific rarities first
+        rarity_order = sorted(base_prices.keys(), key=lambda r: len(r), reverse=True)
+
+        for rarity in rarity_order:
+            base_price = base_prices[rarity]
+            # Debugging output for matching attempt
+            print(f"Trying to match rarity '{rarity}' with card '{card_lower}'")
+            
+            if re.search(r'\b' + re.escape(rarity) + r'\b', card_lower):
+                price = base_price
+                matched = True
+                print(f"Match found: {rarity}, base price: {base_price}")
                 break
 
-        # Adjust price for shiny, shadow, or cold variants
-        if "shiny" in card.lower():
+        if not matched:
+            # If no rarity is matched, output an error with more details
+            error_message = f"Could not determine the rarity for card: '{card}' (processed as '{card_lower}')"
+            print(error_message)
+            messagebox.showerror("Error", error_message)
+            return 0
+
+        # Adjust the price based on card variants
+        if "shiny" in card_lower:
+            print(f"Card '{card_lower}' is shiny. Doubling price.")
             price *= 2
-        elif "shadow" in card.lower():
+        elif "shadow" in card_lower:
+            print(f"Card '{card_lower}' is shadow. Tripling price.")
             price *= 3
-        elif "cold" in card.lower() and "cold" not in rarity:
+        elif "cold" in card_lower and "cold" not in rarity:
+            print(f"Card '{card_lower}' has cold variant. Doubling price.")
             price *= 2
 
+        # Final debugging output for the determined price
+        print(f"Final price for '{card}': {price}")
         return price
 
     def open_pack_animation(self, index):
@@ -426,6 +481,22 @@ class CardGameApp:
             self.player_currency += refund_amount
             return f"Refund! You received {refund_amount} Coins."
 
+        # Easter Egg logic: 0.5% chance to trigger an Easter Egg
+        if random.random() <= EASTER_EGG_CHANCE:
+            easter_egg_choice = random.choices(
+                list(EASTER_EGG_OPTIONS.keys()), 
+                list(EASTER_EGG_OPTIONS.values()), 
+                k=1
+            )[0]
+            
+            if easter_egg_choice == "Million Coins":
+                self.player_currency += 1_000_000
+                return "Easter Egg! You received 1 Million Coins!"
+            else:
+                self.player_inventory.append(easter_egg_choice)
+                return f"Easter Egg! You found a hidden {easter_egg_choice}!"
+
+        # Normal card generation logic based on pack's rarity distribution
         pack_info = CARD_PACKS[pack_name]
         rarity_distribution = pack_info["rarity_distribution"]
 
@@ -434,7 +505,7 @@ class CardGameApp:
 
         selected_rarity = random.choices(rarities, probabilities, k=1)[0]
 
-        # Determine if the card is shiny, shadow, or cold variant
+        # Determine if the card is a variant (Shiny, Shadow, Cold)
         card_variant = ""
         variant_roll = random.random()
 
