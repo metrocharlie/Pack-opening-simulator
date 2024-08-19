@@ -42,16 +42,33 @@ EASTER_EGG_OPTIONS = {
 }
 
 def save_game(data, filename="savegame.pkl"):
+    """Save game state to a file."""
     with open(filename, 'wb') as f:
         pickle.dump(data, f)
     messagebox.showinfo("Save Game", "Game progress saved successfully!")
 
 def load_game(filename="savegame.pkl"):
+    """Load game state from a file."""
     try:
         with open(filename, 'rb') as f:
             data = pickle.load(f)
         messagebox.showinfo("Load Game", "Game progress loaded successfully!")
+
+        # Check if the data contains the new stats, and fill in defaults if not
+        if len(data) == 4:  # Old save file with only 4 values
+            player_currency, player_snow, player_inventory, player_cards = data
+            net_worth = player_currency  # Default net worth calculation
+            total_packs_opened = 0
+            total_cards_sold = 0
+            easter_eggs_found = 0
+            experience_points = 0
+            return (player_currency, player_snow, player_inventory, player_cards,
+                    net_worth, total_packs_opened, total_cards_sold,
+                    easter_eggs_found, experience_points)
+        
+        # If the data contains 9 values, return them directly
         return data
+
     except FileNotFoundError:
         messagebox.showwarning("Load Game", "No saved game found.")
         return None
@@ -62,6 +79,7 @@ class CardGameApp:
         self.root.title("Card Pack Opening Game")
         self.root.attributes('-fullscreen', True)
 
+        # Player stats
         self.player_currency = 180
         self.player_snow = 0  # New Snow currency
         self.player_inventory = []
@@ -69,15 +87,35 @@ class CardGameApp:
         self.currency_label = None
         self.snow_label = None  # Label for Snow currency
 
+        # Stats tracking
+        self.net_worth = 180  # Initially, net worth is just the starting coins
+        self.total_packs_opened = 0
+        self.total_cards_sold = 0
+        self.easter_eggs_found = 0
+        self.experience_points = 0
+
         self.icons = {}
         self.load_icons()
 
         saved_data = load_game()
         if saved_data:
-            self.player_currency, self.player_snow, self.player_inventory, self.player_cards = saved_data
+            (self.player_currency, self.player_snow, self.player_inventory, 
+             self.player_cards, self.net_worth, self.total_packs_opened, 
+             self.total_cards_sold, self.easter_eggs_found, self.experience_points) = saved_data
 
         self.start_coin_reward_system()
         self.main_menu()
+
+    def update_net_worth(self):
+        """Update the player's net worth based on total coins and the sell price of all cards."""
+        self.net_worth = self.player_currency
+        for card in self.player_cards:
+            self.net_worth += self.get_card_price(card)
+
+    def auto_save_game(self):
+        """Automatically saves the game every minute without showing a notification."""
+        self.save_progress()
+        self.root.after(60 * 1000, self.auto_save_game)  # Schedule the next auto-save in 1 minute
 
     def load_icons(self):
         """Load all the icons required for the game."""
@@ -120,6 +158,10 @@ class CardGameApp:
         self.snow_label = tk.Label(self.root, text=f"Snow: {self.player_snow}", font=("Helvetica", 14))
         self.snow_label.place(relx=0.98, rely=0.07, anchor='ne')
 
+    def add_experience(self, points):
+        """Add experience points and update stats."""
+        self.experience_points += points
+
     def main_menu(self):
         """Main menu setup."""
         for widget in self.root.winfo_children():
@@ -134,7 +176,31 @@ class CardGameApp:
         tk.Button(self.root, text="Market", width=20, command=self.market_menu).pack(pady=10)
         tk.Button(self.root, text="Convert Currency", width=20, command=self.convert_currency_menu).pack(pady=10)
         tk.Button(self.root, text="Save Progress", width=20, command=self.save_progress).pack(pady=10)
+        tk.Button(self.root, text="Stats", width=20, command=self.stats_menu).place(relx=0.02, rely=0.97, anchor='sw')  # Stats button at bottom left
         tk.Button(self.root, text="Exit", width=20, command=self.root.quit).pack(pady=10)
+
+    def stats_menu(self):
+        """Display the player's stats."""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        self.update_currency_display()
+
+        tk.Label(self.root, text="Player Stats", font=("Helvetica", 18)).pack(pady=20)
+
+        self.update_net_worth()
+
+        # Display stats
+        stats_text = (
+            f"Net Worth: {self.net_worth} Coins\n"
+            f"Total Packs Opened: {self.total_packs_opened}\n"
+            f"Total Cards Sold: {self.total_cards_sold}\n"
+            f"Easter Eggs Found: {self.easter_eggs_found}\n"
+            f"Experience Points (XP): {self.experience_points}\n"
+        )
+        tk.Label(self.root, text=stats_text, font=("Helvetica", 14)).pack(pady=20)
+
+        tk.Button(self.root, text="Back", width=20, command=self.main_menu).pack(pady=20)
 
     def convert_currency_menu(self):
         """Menu to convert between Coins and Snow."""
@@ -160,6 +226,8 @@ class CardGameApp:
         if self.player_currency >= 250:
             self.player_currency -= 250
             self.player_snow += 1
+            self.net_worth += 250  # Add to net worth
+            self.add_experience(5)  # Award XP for currency conversion
             self.update_currency_display()
             messagebox.showinfo("Conversion Successful", "Converted 250 Coins to 1 Snow!")
         else:
@@ -171,6 +239,8 @@ class CardGameApp:
         if self.player_snow >= 1:
             self.player_snow -= 1
             self.player_currency += 250
+            self.net_worth += 250  # Add to net worth
+            self.add_experience(5)  # Award XP for currency conversion
             self.update_currency_display()
             messagebox.showinfo("Conversion Successful", "Converted 1 Snow to 250 Coins!")
         else:
@@ -273,8 +343,11 @@ class CardGameApp:
         if pack_info["currency"] == "coins":
             if self.player_currency >= total_cost:
                 self.player_currency -= total_cost
+                self.net_worth += total_cost  # Track spending for net worth
+                self.add_experience(10 * quantity)  # Award XP for buying packs
                 self.player_inventory.extend([pack_name] * quantity)
                 messagebox.showinfo("Pack Purchased", f"You bought {quantity} {pack_name}(s)!")
+                self.total_packs_opened += quantity  # Increment total packs opened
                 self.inventory_menu()  # Go to inventory to reflect the purchase
             else:
                 messagebox.showerror("Error", "Not enough currency!")
@@ -282,8 +355,11 @@ class CardGameApp:
         elif pack_info["currency"] == "snow":
             if self.player_snow >= total_cost:
                 self.player_snow -= total_cost
+                self.net_worth += total_cost * 250  # Track spending for net worth
+                self.add_experience(10 * quantity)  # Award XP for buying packs
                 self.player_inventory.extend([pack_name] * quantity)
                 messagebox.showinfo("Pack Purchased", f"You bought {quantity} {pack_name}(s)!")
+                self.total_packs_opened += quantity  # Increment total packs opened
                 self.inventory_menu()  # Go to inventory to reflect the purchase
             else:
                 messagebox.showerror("Error", "Not enough Snow!")
@@ -325,6 +401,28 @@ class CardGameApp:
             tk.Label(self.root, text="No Packs in Inventory").pack(pady=10)
 
         tk.Button(self.root, text="Back", width=20, command=self.inventory_menu).pack(pady=20)
+
+    def open_pack_animation(self, index):
+        """Animates the card pack opening with the correct animation based on the pack."""
+        pack_name = self.player_inventory.pop(index)  # Remove the pack from inventory
+        result = self.generate_card(pack_name)        # Generate the card based on the pack
+        self.total_packs_opened += 1  # Increment total packs opened
+        self.add_experience(20)  # Award XP for opening packs
+
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        self.update_currency_display()
+
+        # Get the correct animation image for the pack
+        pack_animation_image = self.pack_animation_images.get(pack_name, None)
+        
+        if pack_animation_image:
+            pack_img = tk.Label(self.root, image=pack_animation_image)
+            pack_img.pack(pady=20)
+            self.root.after(2000, lambda: self.reveal_card(result))
+        else:
+            self.reveal_card(result)
 
     def card_inventory_menu(self):
         """Displays the player's card collection."""
@@ -373,6 +471,9 @@ class CardGameApp:
         """Handles selling a card from the inventory."""
         card = self.player_cards.pop(index)
         self.player_currency += price
+        self.net_worth += price  # Add to net worth
+        self.total_cards_sold += 1  # Increment total cards sold
+        self.add_experience(15)  # Award XP for selling cards
         messagebox.showinfo("Card Sold", f"You sold {card} for {price} coins!")
         self.market_menu()
 
@@ -382,7 +483,7 @@ class CardGameApp:
             "common": 110,
             "uncommon": 175,
             "rare": 250,
-            "super rare": 500,  # Make sure this is correctly identified
+            "super rare": 500,
             "epic": 1000,
             "mythic": 1600,
             "legendary": 3200,
@@ -442,6 +543,7 @@ class CardGameApp:
         print(f"Final price for '{card}': {price}")
         return price
 
+
     def open_pack_animation(self, index):
         """Animates the card pack opening with the correct animation based on the pack."""
         pack_name = self.player_inventory.pop(index)  # Remove the pack from inventory
@@ -479,6 +581,8 @@ class CardGameApp:
         if random.random() <= REFUND_CHANCE:
             refund_amount = CARD_PACKS[pack_name]["cost"] * 2
             self.player_currency += refund_amount
+            self.net_worth += refund_amount  # Add to net worth
+            self.add_experience(5)  # Award XP for getting a refund
             return f"Refund! You received {refund_amount} Coins."
 
         # Easter Egg logic: 0.5% chance to trigger an Easter Egg
@@ -491,9 +595,14 @@ class CardGameApp:
             
             if easter_egg_choice == "Million Coins":
                 self.player_currency += 1_000_000
+                self.net_worth += 1_000_000  # Add to net worth
+                self.easter_eggs_found += 1  # Increment Easter eggs found
+                self.add_experience(1000)  # Big XP reward for Easter egg
                 return "Easter Egg! You received 1 Million Coins!"
             else:
                 self.player_inventory.append(easter_egg_choice)
+                self.easter_eggs_found += 1  # Increment Easter eggs found
+                self.add_experience(100)  # XP reward for Easter egg
                 return f"Easter Egg! You found a hidden {easter_egg_choice}!"
 
         # Normal card generation logic based on pack's rarity distribution
@@ -528,7 +637,9 @@ class CardGameApp:
 
     def save_progress(self):
         """Saves the current game progress."""
-        data = (self.player_currency, self.player_snow, self.player_inventory, self.player_cards)
+        data = (self.player_currency, self.player_snow, self.player_inventory, self.player_cards,
+                self.net_worth, self.total_packs_opened, self.total_cards_sold, 
+                self.easter_eggs_found, self.experience_points)
         save_game(data)
 
 if __name__ == "__main__":
